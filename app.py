@@ -4,10 +4,7 @@ import validators
 import streamlit as st
 import requests
 import os
-
-#History Storage
-if "history" not in st.session_state:
-    st.session_state.history = []
+import plotly.graph_objects as go
 
 # Page config
 st.set_page_config(
@@ -16,10 +13,14 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS (UPDATED)
+# History storage
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+# Custom CSS
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500&family=Inter:wght@400;600&family=Great+Vibes&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Great+Vibes&family=Inter:wght@400;600&display=swap');
 
 body {
     background-color: #0e1117;
@@ -27,11 +28,6 @@ body {
     font-family: 'Inter', sans-serif;
 }
 
-.stApp {
-    background-color: #0e1117;
-}
-
-/* Cursive Title */
 .main-title {
     font-family: 'Great Vibes', cursive;
     text-align: center;
@@ -40,14 +36,12 @@ body {
     margin-bottom: 30px;
 }
 
-/* Input */
 .stTextInput>div>div>input {
     background-color: #1c1f26;
     color: white;
     border: 1px solid #00ff9f;
 }
 
-/* Button */
 .stButton>button {
     background-color: #00ff9f;
     color: black;
@@ -55,29 +49,19 @@ body {
     font-weight: bold;
 }
 
-/* Metric */
 .stMetric {
     background-color: #1c1f26;
     padding: 10px;
     border-radius: 10px;
     border: 1px solid #00ff9f;
-    box-shadow: 0 0 10px rgba(0,255,159,0.2);
 }
 
-/* REMOVE submit text (FORCE REMOVE) */
-small, 
-[data-testid="stTextInput"] small,
-[data-testid="stForm"] small,
-[data-baseweb="input"] + div,
-[data-testid="stTextInput"] div[role="alert"] {
+/* Remove helper text */
+small {
     display: none !important;
 }
 </style>
 """, unsafe_allow_html=True)
-
-# History
-if "history" not in st.session_state:
-    st.session_state.history = []
 
 # API Key
 API_KEY = os.getenv("VT_API_KEY")
@@ -85,7 +69,7 @@ if not API_KEY:
     st.error("API key not found. Set VT_API_KEY.")
     st.stop()
 
-# HEADER (UPDATED)
+# Header
 st.markdown('<div class="main-title">ThreatLens</div>', unsafe_allow_html=True)
 
 # Form
@@ -105,9 +89,6 @@ if submitted:
     parsed_url = urlparse(url)
     domain = parsed_url.netloc
     protocol = parsed_url.scheme
-
-    malicious = suspicious = harmless = undetected = 0
-    risk_score = 0
 
     with st.spinner("Analyzing threat intelligence..."):
 
@@ -162,15 +143,16 @@ if submitted:
     else:
         risk_score = 90
 
-    #Save Scan to history
-    st.session_state.history.append({
-        "url": url,
+    # Save history (clean version)
+    st.session_state.history.insert(0, {
+        "url": domain,
         "risk": risk_score,
         "malicious": malicious,
-        "suspicious": suspicious,
+        "suspicious": suspicious
     })
+    st.session_state.history = st.session_state.history[:5]
 
-    # URL Details
+    # URL details
     st.subheader("URL Details")
     st.write(f"Domain: {domain}")
     st.write(f"Protocol: {protocol}")
@@ -180,11 +162,27 @@ if submitted:
     st.info(f"Detected by {flagged}/{total_engines} engines")
 
     # Metrics
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     col1.metric("Malicious", malicious)
     col2.metric("Suspicious", suspicious)
-    col3.progress(risk_score / 100)
-    col3.caption(f"Risk Score: {risk_score}/100")
+
+    # Gauge (NEW)
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=risk_score,
+        title={'text': "Risk Score"},
+        gauge={
+            'axis': {'range': [0, 100]},
+            'bar': {'color': "#00ff9f"},
+            'steps': [
+                {'range': [0, 30], 'color': "#1f3d2b"},
+                {'range': [30, 60], 'color': "#4d3d00"},
+                {'range': [60, 100], 'color': "#4d0000"}
+            ],
+        }
+    ))
+
+    st.plotly_chart(fig, use_container_width=True)
 
     # Verdict
     if risk_score >= 80:
@@ -204,7 +202,6 @@ if submitted:
         margin-bottom:20px;
     ">
         <h1 style="color:{color};">{verdict}</h1>
-        <p>Risk Score: {risk_score}/100</p>
         <p>{flagged}/{total_engines} engines flagged</p>
     </div>
     """, unsafe_allow_html=True)
@@ -228,19 +225,11 @@ if submitted:
     for r in reasons:
         st.write(f"- {r}")
 
-    # Save history
-    st.session_state.history.insert(0, {
-        "url": domain,
-        "risk": verdict,
-        "score": risk_score
-    })
-    st.session_state.history = st.session_state.history[:5]
-
-# History
+# History display
 st.subheader("Recent Scans")
 
 if st.session_state.history:
-    for item in reversed(st.session_state.history[-5:]):
+    for item in st.session_state.history:
         st.markdown(f"""
         **URL:** {item['url']}  
         Risk: {item['risk']}/100  
