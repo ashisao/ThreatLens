@@ -5,6 +5,10 @@ import streamlit as st
 import requests
 import os
 
+#History Storage
+if "history" not in st.session_state:
+    st.session_state.history = []
+
 # Page config
 st.set_page_config(
     page_title="ThreatLens",
@@ -158,6 +162,14 @@ if submitted:
     else:
         risk_score = 90
 
+    #Save Scan to history
+    st.session_state.history.append({
+        "url": url,
+        "risk": risk_score,
+        "malicious": malicious,
+        "suspicious": suspicious,
+    })
+
     # URL Details
     st.subheader("URL Details")
     st.write(f"Domain: {domain}")
@@ -226,5 +238,13 @@ if submitted:
 
 # History
 st.subheader("Recent Scans")
-for item in st.session_state.history:
-    st.write(f"{item['url']} → {item['risk']} ({item['score']}/100)")
+
+if st.session_state.history:
+    for item in reversed(st.session_state.history[-5:]):
+        st.markdown(f"""
+        **URL:** {item['url']}  
+        Risk: {item['risk']}/100  
+        Malicious: {item['malicious']} | Suspicious: {item['suspicious']}
+        """)
+else:
+    st.info("No scans yet")
