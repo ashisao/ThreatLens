@@ -1,5 +1,0 @@
-requirement
-
-streamlit
-requests
-validators
